@@ -85,13 +85,52 @@ struct Connection {
     double delta_weight;
 };
 
+class ActivationFunction {
+    public:
+        ActivationFunction(string name) {
+            if (name.compare("tanh") == 0) {
+                type = 0; 
+            }
+            else if (name.compare("sigmoid") == 0) {
+                type = 1;
+            }
+            else {
+                type = 2;
+            }
+        }
+        double eval_function(double input) {
+            if (type == 0) {
+                return tanh(input); 
+            }
+            else if (type == 1) {
+                return 1.0 / (1.0 + exp(-input));
+            }
+            else {
+                return -10000.0;
+            }
+        }
+        double eval_grad(double input) {
+            if (type == 0) {
+                return 1.0 - (input * input);
+            }
+            else if (type == 1) {
+                return input * (1 - input);
+            }
+            else {
+                return -10000.0;
+            }
+        }
+    private:
+        uint32_t type;
+};
+
 class Neuron;
 
 typedef vector<Neuron> Layer;
 
 class Neuron {
     public:
-        Neuron(uint32_t num_outputs, uint32_t index);
+        Neuron(uint32_t num_outputs, uint32_t index, string name);
         void feed_forward(Layer& prev_layer);
         void set_output(double val) {
             output = val;
@@ -101,14 +140,14 @@ class Neuron {
         }
         void eval_grad(double target_val) {
             double delta = target_val - output;
-            grad = delta * activation_function_delta(output);
+            grad = delta * fn.eval_grad(output);
         }
         void eval_hidden_grad(const Layer &next_layer) {
             double sum = 0.0;
             for (uint32_t i=0; i<next_layer.size()-1; i++) {
                 sum += output_weights[i].weight * next_layer[i].grad;
             }
-            grad = sum * Neuron::activation_function_delta(output);
+            grad = sum * fn.eval_grad(output);
         }
         void update_weights(Layer &prev_layer) {
             for (uint32_t i=0; i<prev_layer.size(); i++) {
@@ -133,12 +172,13 @@ class Neuron {
         double grad;
         static double eta;
         static double alpha;
+        ActivationFunction fn;
 };
 
 double Neuron::eta = 0.1;
 double Neuron::alpha = 0.5;
 
-Neuron::Neuron(uint32_t num_outputs, uint32_t index) {
+Neuron::Neuron(uint32_t num_outputs, uint32_t index, string name) : fn(name) {
     for (uint32_t i = 0; i < num_outputs; i++) {
         output_weights.push_back(Connection());
         output_weights.back().weight = random_weight();
@@ -151,7 +191,7 @@ void Neuron::feed_forward(Layer &prev_layer) {
     for (uint32_t i=0; i<prev_layer.size(); i++) {
         sum += (prev_layer[i].get_output()) * prev_layer[i].output_weights[n_index].weight;
     }
-    output = Neuron::activation_function(sum);
+    output = fn.eval_function(sum);
 }
 
 double Neuron::activation_function(double input) {
@@ -164,7 +204,7 @@ double Neuron::activation_function_delta(double input) {
 
 class NeuralNet {
     public:
-        NeuralNet(const vector<uint32_t> &network_graph);
+        NeuralNet(const vector<uint32_t> &network_graph, string name);
         void feed_forward(const vector<double> &input_vals);
         void back_prop(const vector<double> &target_vals);
         void get_results(vector<double> &result_vals);
@@ -178,7 +218,7 @@ class NeuralNet {
         double smoothening_factor;
 };
 
-NeuralNet::NeuralNet(const vector<uint32_t> &network_graph) {
+NeuralNet::NeuralNet(const vector<uint32_t> &network_graph, string name) {
     uint32_t num_layers = network_graph.size();
     for (uint32_t layer_num = 0; layer_num < num_layers; layer_num ++) {
         // Create a new Layer per layer number
@@ -187,7 +227,7 @@ NeuralNet::NeuralNet(const vector<uint32_t> &network_graph) {
 
         //Fill it with values corresponding to those in neurons
         for (uint32_t neuron_num = 0; neuron_num <= network_graph[layer_num]; neuron_num++) {
-            layers.back().push_back(Neuron(num_outputs, neuron_num));
+            layers.back().push_back(Neuron(num_outputs, neuron_num, name));
             cout << "Made a neuron\n";
         }
 
@@ -269,7 +309,7 @@ int main() {
     TrainingData train_data("trainingData.txt");
     vector<uint32_t> network_graph;
     train_data.get_network_graph(network_graph);
-    NeuralNet nn(network_graph);
+    NeuralNet nn(network_graph, "tanh");
 
     vector<double> input_vals, target_vals, result_vals;
     	vector<double> inputVals, targetVals, resultVals;
